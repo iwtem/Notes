@@ -94,10 +94,10 @@ const decBtn = document.getElementById('decre');
 const span = document.getElementById('text');
 // 6. 给按钮添加点击事件
 incBtn.addEventListener('click', function () {
-  store.dispatch(actions.increment);
+  store.dispatch(increment);
 });
 decBtn.addEventListener('click', function () {
-  store.dispatch(actions.decrement);
+  store.dispatch(decrement);
 });
 // 7. 订阅 Store，当 Store 发生改变，同步更新到 View 中
 store.subscribe(function () {
@@ -341,4 +341,85 @@ export const asyncAction = (payload) => (dispatch) => {
 #### 3.3.3 redux-actions
 
 Redux 工作流程中存在大量的样板代码，读写起来很麻烦，通过使用 `redux-actions` 可以简化 Action 和 Reducer 的处理。
+
+## 4. Redux 核心源码实现
+
+### 4.1 createStore 方法
+
+ `createStore` 方法是 Redux 的核心，用于创建 Redux Store，存放所有 State，并且提供订阅、获取状态、分发动作的方法。
+
+#### 4.1.1 createStore 分析
+
+ `createStore` 接收三个参数 `reducer`、`preloadState`、`enhancer`，分别是：
+
+- **reducer**：一个函数，接收两个参数，分别是当前的 State 和即将执行的 Action，并且返回最新的 State；
+- **preloadState**：初始化的 State，可选；
+- **enhancer**：一个函数，Redux 的中间件，用于增强 Redux 的能力，可选；
+
+`createStore` 返回一个对象，包括 `getState`、`dispatch`、`subscribe` 方法：
+
+- **getState**：获取 Store 中最新的 State；
+- **dispatch**：用于触发 Action，当 Reducer 返回最新的 State 后，通知订阅者获取最新的 State，更新视图；
+- **subscribe**：用于外部订阅 Store 中的 State；
+
+#### 4.1.2 createStore 实现
+
+**实现流程**：
+
+1. 当使用者调用 `createStore` 后，`createStore` 内部会根据入参初始化 Store 内部的 `currentState`；
+2. 由于 Store 是可以被多次订阅的，所以内部会维护一个存放订阅者的数组 `currentListeners`，每当通过 Store 对象调用 `subscribe`，都表示订阅了当前 Store，增加一个订阅者，存放到 `currentListeners` 数组中。
+3. 当视图上调用 `dispatch` 方法，`dispatch` 内部先去调用 `reducer` 方法，并传入当前的 State 和传入 `dispatch` 的 Action。`reducer` 方法会根据不同的 Action 处理相关逻辑并返回最新的 State，这时 Store 会将最新的 State存储起来。接着 `dispatch` 继续循环调用`currentListeners` 中的订阅者，通知订阅者获取最新的 State，并更新到视图上。
+
+**实现代码**：
+
+```javascript
+const createStore = (reducer, preloadedState, enhancer) => {
+  if (typeof reducer !== "function") {
+    throw new Error("reducer 必须是一个函数");
+  }
+
+  // Store 对象中存储的对象
+  let currentState = preloadedState;
+  // 存放订阅 Store 的订阅者函数
+  const currentListeners = [];
+
+	// 获取 Store 中最新的状态
+  function getState() {
+    return currentState;
+  }
+
+  // 触发 Action
+  function dispatch(action) {
+    if (isPlainObject(action)) {
+      throw new Error("action 必须是对西那个");
+    }
+
+    if (typeof action.type === "undefined") {
+      throw new Error("action 对象必须要有 type 属性");
+    }
+
+    // 每个 reducer 都会接收一个 state，一个 action，并且返回最新的 state
+    currentState = reducer(currentState, action);
+    // 循环获取订阅者
+    for (const listener of currentListeners) {
+      // 调用订阅者
+      listener();
+    }
+  }
+
+	// 订阅 Store 中的状态
+  function subscribe(listener) {
+    currentListeners.push(listener);
+  }
+
+  return {
+    getState,
+    dispatch,
+    subscribe,
+  };
+};
+
+```
+
+#### 4.1.3 支持中间件 enhancer
 
