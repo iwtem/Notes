@@ -16,7 +16,7 @@ JavaScript 状态容器（对象），提供可预测的状态管理。在容器
 
 - **Reducers**：函数，操作状态并返回新的状态
 
-![image-20211120145840074](./redux 工作流.png)
+![redux 工作流](./images/redux-flow.png)
 
 #### 1.2.2 工作流程
 
@@ -24,7 +24,7 @@ JavaScript 状态容器（对象），提供可预测的状态管理。在容器
 
 #### 1.2.3 核心 API
 
-![redux-api](./redux-api.png)
+![redux-api](./images/redux-api.png)
 
  #### 1.2.4 计数案例
 
@@ -108,19 +108,19 @@ store.subscribe(function () {
 
 
 
-## 2. React + Redux
+## 2. Redux + React
 
 ### 2.1 React 不使用 Redux 遇到的问题
 
 在 Redux 中组件通信的数据流是**单向**的，顶层的组件可以通过 props 属性向下层组件传递数据，而下层组件不能向上层组件传递数据，要实现下层组件修改数据，需要上层组件传递修改数据的方法到下层组件。当项目越来越大时，组件之间传递数据会变得越来越困难。
 
-<img src="./react-flow.png" alt="React-Flow" style="zoom:50%;" />
+![react工作流](./images/react-flow.png)
 
 ### 2.2 React 中引入 Redux 的好处
 
 使用 Redux 管理数据，由于 Store 独立于组件，使得数据管理独立于组件，解决了组件之间传递数据困难的问题。
 
-<img src="./redux-flow.png" alt="Redux-Flow" style="zoom:50%;" />
+![redux工作流](./images/redux-react-flow.png)
 
 ### 2.3 React 中的 Redux 工作流程
 
@@ -129,7 +129,7 @@ store.subscribe(function () {
 3. Reducer 根据 Action 类型对状态进行更改并将更改后的状态返回给 Store
 4. 组件订阅了Store中的状态，Store 中的状态更新会同步到组件
 
-![redux-in-react](./redux-in-react.png)
+![redux-in-react](./images/redux-in-react.png)
 
 ### 2.4 React-Redux 库的作用
 
@@ -253,27 +253,92 @@ VisibleTodoList.contextTypes = {
 }
 ```
 
+## 3. Redux 中间件
 
+### 3.1 什么是 Redux 中间件
 
-### 2.5 Redux 在 React 中的使用
+中间件的本质是一个函数，通过使用中间可以拓展 Redux 应用程序。
 
-#### 2.4.1 创建 Store 和 Reducer
+中间件的能力主要体现在对 Action 的能力上。未引入中间件之前，Action 是直接被 Reducer 处理的；引入中间件之后，当组件触发某个 Action 后，Action 会优先被中间件处理，当中间件处理完成后再交给 Reducer 进行处理。
 
-1. 创建 Store 需要使用 createStore 方法, 方法执行后的返回值就是 Store, 方法需要从 redux 中引入；
-2. createStore 方法的第一个参数需要传递 reducer；
-3. reducer 是一个函数, 函数返回什么, store 中就存储什么， 函数名称自定义。
+![redux-middleware](./images/redux-middleware.png)
+
+### 3.2 开发 Redux 中间件
+
+#### 3.2.1 中间件的模版代码
 
 ```javascript
-import { createStore } from 'redux';
-
-const reducer = function(state, action) {
-  return { state.count + 1 };
-}
-const store = createStore(reducer);
+export default store => next => action => {
+  // some codes ...
+  next(action);
+};
 ```
 
-#### 2.4.2 组件获取 Store 中的数据
+在最外层函数中，接收一个 `store`，通过 `store.getState` 可以获取当前 Store 中的状态，通过 `store.dispatch` 可以触发其他 Action。
 
-1. 将 store 中的数据放在 Provider 组件中，Provider 组件是存储共享数据的地方；
-2. 组件使用 connect 方法获取数据并将数据通过 props 传递进组件；
-3. 组件更改 Store 中的数据。
+在最内层的函数中，接收了一个 `action` 参数，是组件触发的 Action 对象，可以在函数内部判断 Action，来决定进行怎样的处理。
+
+在中间的函数中，接收了一个 `next` 参数，`next` 是一个函数，当中间件的逻辑代码执行完成之后，要调用该 `next` 方法，其目的是为了将当前的 `action` 传递给 Reducer，或者是下一个中间件。
+
+#### 3.2.2 注册中间件
+
+中间件在开发完成之后，需要被注册才能在 Redux 的工作流程中生效。
+
+```javascript
+import { createStore, applyMiddleware } from 'redux';
+import logger from './middlewares/logger';
+
+createSotre(reducer, applyMiddleware(
+  logger,
+));
+```
+
+#### 3.2.3 中间件开发实例 Thunk
+
+Thunk 是一个支持 Redux 异步操作的中间件，**工作原理**就是当 Action 返回一个函数，在中间件中调用并将 `dispatch` 传递给该函数。这时 Action 返回的函数会接收到 `dispatch`，等待 Action 中的异步操作完成后，在异步操作回调里面再执行该 `dispatch` 触发其他的同步 Action，同时把异步操作的处理结果传递给该同步的 Action，把最终的异步操作的值保存到 Store 中。
+
+**Thunk 的实现代码：**
+
+```javascript
+const thunk = (store) => (next) => (action) => {
+  // action 是函数则调用，并传递 dispatch
+  if (typeof action === "function") {
+    const { dispatch } = store;
+    return action(dispatch);
+  }
+
+  // 同步操作不做处理，直接调用 next 函数
+  next(action); // 传递给下一个 middleware 或 Reducer，否则程序无法继续运行下去
+};
+
+export default thunk;
+```
+
+**异步 Action**
+
+```javascript
+export const syncAction = (payload) => ({ type: 'increment', payload });
+
+export const asyncAction = (payload) => (dispatch) => {
+  setTimeout(() => {
+    dispatch(syncAction(payload));
+  }, 2000);
+};
+```
+
+### 3.3 Redux 常用中间件
+
+#### 3.3.1 redux-thunk
+
+支持在 Redux 的工作流程中执行异步的 Actions。
+
+#### 3.3.2 redux-saga
+
+`redux-sage` 的作用同 `redux-thunk` 一样，都是可以允许在 Redux 的工作流程中加入异步代码。
+
+`redux-sage` 有一个更为强大的特点，可以将异步操作从 Action Creator 文件中抽离出来，放在一个单独的文件中，让异步代码变得更加的可维护。
+
+#### 3.3.3 redux-actions
+
+Redux 工作流程中存在大量的样板代码，读写起来很麻烦，通过使用 `redux-actions` 可以简化 Action 和 Reducer 的处理。
+
