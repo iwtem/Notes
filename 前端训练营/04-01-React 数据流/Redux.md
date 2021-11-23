@@ -259,7 +259,7 @@ VisibleTodoList.contextTypes = {
 
 中间件的本质是一个函数，通过使用中间可以拓展 Redux 应用程序。
 
-中间件的能力主要体现在对 Action 的能力上。未引入中间件之前，Action 是直接被 Reducer 处理的；引入中间件之后，当组件触发某个 Action 后，Action 会优先被中间件处理，当中间件处理完成后再交给 Reducer 进行处理。
+中间件的能力主要体现在对 Action 的能力上。未引入中间件之前，Action 是直接被 Reducer 处理的；引入中间件之后，当组件触发某个 Action 后，Action 会优先被中间件处理，当中间件处理完成后再交给 Reducer 进行处理，本质上就是对 `dispatch` 功能的增强。
 
 ![redux-middleware](./images/redux-middleware.png)
 
@@ -269,7 +269,7 @@ VisibleTodoList.contextTypes = {
 
 ```javascript
 export default store => next => action => {
-  // some codes ...
+  // some codes ...0.
   next(action);
 };
 ```
@@ -422,4 +422,198 @@ const createStore = (reducer, preloadedState, enhancer) => {
 ```
 
 #### 4.1.3 支持中间件 enhancer
+
+`enhancer` 是 `createStore` 的第三个参数，可选参数，如果传递了 `enhancer`，那么必须是一个函数，否则报错。
+
+`enhancer` 的，入参是 `createStore`，返回一个新的 `createStore`，然后 再次调用这个新的  `createStore` 返回一个增强的 Store 对象。
+
+在上面的 `createStore` 第四行后面添加如下代码，支持 enhancer：
+
+```javascript
+if (typeof enhancer !== "undefined") {
+  if (typeof enhancer !== "function") {
+    throw new Error("enhancer 必须是一个函数");
+  }
+  return enhancer(createStore)(reducer, preloadedState);
+}
+```
+
+下面是一个实现的 Enhancer：
+
+```javascript
+const enhancer = (createStore) => (reducer, preloadedState) => {
+  const store = createStore(reducer, preloadedState);
+  const dispatch = store.dispatch;
+  const _dispatch = (action) => {
+    if (typeof action === 'function') {
+      return action(dispatch);
+    }
+    dispatch(dispatch);
+  }
+  return {
+    ...store,
+    dispatch: _dispatch,
+  }
+}
+```
+
+### 4.2 applyMiddleware 方法
+
+Redux 中间件的核心作用就是增强 `dispatch` 方法。`applyMiddleware` 其实就是内置的 `enhancer` 函数，目的就是对 Store 进行增强，也就是对 `dispatch` 方法进行增强。
+
+具体代码实现如下：
+
+```javascript
+const compose = () => {
+  const funcs = [...arguments];
+  return (dispatch) => {
+    for (let i = funcs.length - 1; i >= 0; i--) {
+      dispatch = funcs[i](dispatch);
+    }
+    return dispatch;
+  };
+};
+```
+
+
+
+```javascript
+const applyMiddleware = (...middlewares) => {
+  return (createStore) => {
+    return (reducer, preloadedState) => {
+      // 创建 store
+      const store = createStore(reducer, preloadedState);
+      const miniStore = {
+        getState: store.getState,
+        dispatch: store.dispatch,
+      };
+      // 调用中间件的第一层函数
+      // 中间件 middleware 的模板：(store) => (next) => (action) => {}
+      const chain = middlewares.map((middleware) => middleware(miniStore));
+      const dispatch = compose(...chain)(store.dispatch);
+      return {
+        ...store,
+        dispatch,
+      };
+    };
+  };
+};
+```
+
+### 4.3 bindActionCreators 方法
+
+将 ActionCreator 函数转换为可以直接触发 Action 的函数，也就是说在使用 `bindActionCreators` 方法之前，需要通过 `dispatch` 触发 Action，而通过 `bindActionCreators` 方法调用返回后，可以直接使用其返回的函数触发对应的 Action。
+
+**参数**：
+
+1. `actionCreators` (*Function* or *Object*): 一个 ActionCreator，或者一个 value 是 ActionCreator 的对象。
+2. `dispatch` (*Function*): 一个由 Store 实例提供的 `dispatch` 实例提供的 `dispatch` 函数。
+
+**返回值**：
+
+(*Function* or *Object*): 一个与原对象类似的对象，只不过这个对象的 value 都是会直接 dispatch 原 action creator 返回的结果的函数。如果传入一个单独的函数作为 `actionCreators`，那么返回的结果也是一个单独的函数。
+
+在使用 `bindActionCreators` 之前的代码是这样：
+
+```react
+import React from 'react';
+import { bindActionCreators } from 'redux';
+import { connect } from 'react-redux';
+import * as TodoActionCreators from './TodoActionCreators'
+
+const TodoList = (props) => {
+    const { dispatch } = props;
+    
+    React.useEffect({
+        const action = TodoActionCreators.addTodo('Use Redux');
+    	dispatch(action);
+    }, []);
+
+    return <div>do something</div>;
+}
+
+const mapStateToProps = (state) => ({
+  todos: state.todos,
+});
+
+export default connect(mapStateToProps)(TodoList);
+```
+
+使用之后：
+
+```jsx
+import React from 'react';
+import { bindActionCreators } from 'redux';
+import { connect } from 'react-redux';
+import * as TodoActionCreators from './TodoActionCreators'
+
+const TodoList = (props) => {
+    const { addTodo } = props;
+    
+    React.useEffect({
+        addTodo();
+    }, []);
+
+    return <div>do something</div>;
+}
+
+const mapStateToProps = (state) => ({
+  todos: state.todos,
+});
+
+const mapDispatchToProps = (dispatch) =>
+  bindActionCreators(TodoActionCreators, dispatch);
+
+export default connect(mapStateToProps, mapDispatchToProps)(TodoList);
+```
+
+从上面例子可以看出，使用前后的区别主要在是否需要使用 `dispatch` 及创建 Action 的区别，`bindActionCreators` 的具体实现：
+
+```javascript
+function bindActionCreators(actionCreators, dispatch) {
+    const boundActionCreators = {};
+    for(let key in actionCreators) {
+        boundActionCreators[key] = function() {
+            dispatch(actionCreators[key]());
+        }
+    }
+    return boundActionCreators;
+}
+```
+
+### 4.4 combineReducers 方法
+
+`combineReducers ` 主要作用就是把一个由多个不同 Reducer 函数组合的对象，合并成一个最终的 Reducer 函数。通常在应用变的复杂的情况下，需要把 Reducer 函数拆分为多个单独的函数，每个函数取负责管理 State 的一部分。
+
+ **参数**：
+
+1. `reducers` (*Object*): 一个对象，它的值（value）对应不同的 reducer 函数，这些 reducer 函数后面会被合并成一个。
+
+**返回值**：
+
+(*Function*)：一个调用 `reducers` 对象里所有 reducer 的 reducer，并且构造一个与 `reducers` 对象结构相同的 state 对象。
+
+具体实现如下：
+
+```javascript
+function combineReducers(reducers) {
+  // 1. 检查 reducer 类型，必须是函数
+  for (let key in reducers) {
+    if (typeof reducers[key] !== "function") {
+      throw new Error('reducer 必须是一个函数');
+    }
+  }
+
+  // 2. 调用各个 reducer，然后将状态存储在 store 中
+  return function (state, action) {
+    const nextStates = {};
+    for (let key in reducers) {
+      const prevState = state[key];
+      const reducer = reducers[key];
+      nextStates[key] = reducer(prevState, action);
+    }
+    return nextStates;
+  }
+}
+```
 
