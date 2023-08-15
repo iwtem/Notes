@@ -4,6 +4,8 @@
 
 终端：Git
 
+Node 管理：nvm-windows
+
 最终效果：关键字高亮、命令提示、主题定制
 
 ![result](./images/result.png)
@@ -167,3 +169,9 @@ source ~/.zshrc
 ### 3.6 其他插件
 
 更多插件可参考：https://github.com/ohmyzsh/ohmyzsh/wiki/Plugins
+
+## 4. 安装 nvm-windows
+
+不同的项目使用的 Node 版本不一样，可能存在不兼容的问题，所以需要一个管理工具可以随意切换 Node 的版本。
+
+ 
