@@ -9,6 +9,7 @@
 - 页面重定向逻辑有误
 - 页面加载缓慢
 - 项目启动慢，构建时间较长
+- 打包产物过大
 
 ## 2. 问题分析
 
@@ -83,6 +84,14 @@
   - 优化其他 webpack 配置
   - 开启缓存（开发环境）
 - babel 转译器较慢，可以考虑使用 swc 替换优化
+
+### 2.4 打包产物大
+
+最近进行微前端改造，把一个模块改造成微应用，这个模块的代码量本身不大，大概只有 160 KB，但是打包出来的产品有 20MB +。
+
+- 基础库开启 tree sharking，如果 package.json 未配置 sideEffect: false，打包工具不会进行 tree sharking
+- MF 的 Shared 关闭，被 MF Shared 的组件库，不会被 tree sharking
+- 调整使用 import * 的地方，被 import * 的组件库，然后动态使用，也不会被 tree sharking
 
 ## 3. 具体优化
 

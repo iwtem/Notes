@@ -1,6 +1,6 @@
 
 
-# 	微前端技术选型调研
+# 	Monorepo 技术选型调研
 
 - Repository，代码仓库，简称 repo；
 - MultiRepo，多仓库管理；
