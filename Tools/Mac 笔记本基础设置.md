@@ -30,3 +30,10 @@ Cursor Pro，应用商店
 
 ### 8. Terminal
 
+
+
+
+
+其他必装的软件：MonoProxy、Chrome、JetBrains Toolbox、NodeJS、Git、Yarn、Webstorm、Vscode、Wechat Devtools、Typora、Sublime Text、Notion、Youdao、FreeForm、Mockoon、滴答、Insomnia、CleanMyMac X、Apifox、Shottr、Alimail、Xmind、iTerm、zsh、ohmy Zsh、Docker、Github Desktop、WizNote、
+
+选装：Discord
